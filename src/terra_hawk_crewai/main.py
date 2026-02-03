@@ -188,8 +188,8 @@ class SmartFarmFlow(Flow):
 
 def kickoff():
     smart_farm_flow = SmartFarmFlow()
-    smart_farm_flow.plot()
-    smart_farm_flow.kickoff()
+    # smart_farm_flow.plot()
+    result = smart_farm_flow.kickoff()
 
 def plot():
     poem_flow = SmartFarmFlow()
