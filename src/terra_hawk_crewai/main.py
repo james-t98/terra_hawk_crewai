@@ -4,7 +4,7 @@ from random import randint
 from pydantic import BaseModel
 
 from crewai.flow import Flow, listen, start
-
+from crewai.flow.human_feedback import human_feedback, HumanFeedbackResult
 from terra_hawk_crewai.crews.poem_crew.poem_crew import PoemCrew
 
 class PoemFlow(Flow):
@@ -22,6 +22,12 @@ class PoemFlow(Flow):
             self.state["sentence_count"] = randint(1, 5)
 
     @listen(generate_sentence_count)
+    @human_feedback(
+        message="Do you like this poem?",
+        emit=["yes", "no"],
+        llm="gpt-4o-mini",
+        default_outcome="no"
+    )
     def generate_poem(self):
         result = (
             PoemCrew()
@@ -29,10 +35,20 @@ class PoemFlow(Flow):
             .kickoff(inputs={"sentence_count": self.state["sentence_count"]})
         )
 
-        print("Poem generated", result.raw)
         self.state["poem"] = result.raw
 
+        if self.state["poem"]:
+            return "yes"
+
+        return "no"
+    
+    @listen("yes")
+    def write_poem(self):
         return self.state["poem"]
+    
+    @listen("no")
+    def dont_write_poem(self, result: HumanFeedbackResult):
+        return f"Human response: {result.feedback}. Not writing the poem."
 
 
 def kickoff():
