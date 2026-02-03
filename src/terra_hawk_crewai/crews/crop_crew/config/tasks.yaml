@@ -1,0 +1,134 @@
+weather_task:
+  description: >
+    Retrieve the weather forecast for {date} in {location} using the weather_api_tool and provide insights relevant to agricultural operations.
+    Assess conditions critical to precipitation probability for disease outbreak risk, wind speed for drone flight safety (flag if >20km/h),
+    temperature ranges for fungal growth (optimal 15-25°C), and humidity for nitrogen volatilization monitoring. Provide specific timing
+    recommendations for safe drone operations and identify optimal weather windows for field interventions. Calculate disease
+    outbreak probability based on temperature-humidity combinations.
+    Create a comprehensive markdown weather report with analysis and recommendations.
+  expected_output: >
+    A neatly formatted JSON string containing the weather analysis:
+    - weather_analysis: Object containing:
+      - summary: A brief narrative summary of the weather conditions and agricultural impact
+      - location: The location for which weather data was retrieved
+      - date: The date of the weather forecast
+      - weather_data: Object with temperature_c, feels_like_c, condition, humidity, wind_kph
+      - air_quality: Object with aqi, pm2_5, pm10, o3, no2, so2, co
+      - agricultural_assessment: Object with flight_clearance_status, disease_risk_level, disease_risk_percentage, nitrogen_volatilization_risk, optimal_operations
+
+    Example format:
+    {
+      "weather_analysis": {
+        "summary": "Favorable conditions for field operations with moderate disease risk due to high humidity",
+        "location": "Amsterdam",
+        "date": "2026-01-27",
+        "weather_data": {
+          "temperature_c": 12.5,
+          "feels_like_c": 10.2,
+          "condition": "Partly cloudy",
+          "humidity": 78,
+          "wind_kph": 15.3
+        },
+        "air_quality": {
+          "aqi": 2,
+          "pm2_5": 12.5,
+          "pm10": 18.2,
+          "o3": 45.3,
+          "no2": 23.1,
+          "so2": 5.2,
+          "co": 234.5
+        },
+        "agricultural_assessment": {
+          "flight_clearance_status": true,
+          "disease_risk_level": "Medium",
+          "disease_risk_percentage": 45,
+          "nitrogen_volatilization_risk": "Low",
+          "optimal_operations": [
+            "Drone operations safe between 10:00-16:00",
+            "Apply fungicide before evening due to rising humidity"
+          ]
+        }
+      }
+    }
+  agent: weather_analyst
+
+crop_sensor_task:
+  description: >
+    Use the sensor_data_retriever tool to retrieve the latest 10 IoT sensor readings for {farm_id}.
+    Collaborate with your teammate Weather Agent to get the weather data and their report. Your location is {location}, and you require the current weather forecast data.
+    Combine this and the weather data you received for interpretations.
+    Analyze the sensor data including soil moisture (%), pH levels, temperature (°C), and other metrics across field zones.
+    Cross-reference the sensor data with the weather report from the weather_analyst to provide comprehensive agricultural insights.
+    Identify trends, anomalies, irrigation needs, and correlations between environmental conditions and soil health.
+    Assess how current weather conditions (temperature, humidity, precipitation) impact soil moisture levels and disease risk.
+    Create a comprehensive markdown sensor analysis report with findings and recommendations.
+  expected_output: >
+    A neatly formatted JSON string containing the sensor analysis:
+    - sensor_analysis: Object containing:
+      - summary: A brief narrative summary of the sensor analysis and key findings
+      - farm_id: The farm ID that was analyzed
+      - readings_count: Total number of sensor readings analyzed
+      - analysis_period: Time range of the sensor data analyzed
+      - zones_analyzed: List of field zones covered in the analysis
+      - soil_health_metrics: Array of objects containing per-zone analysis:
+        - zone_name: String (e.g., "Zone_1")
+        - average_moisture: Numeric percentage
+        - average_temperature: Numeric in Celsius
+        - average_ph: Numeric pH level
+        - status: String ("Good", "Attention Needed", "Critical")
+      - irrigation_recommendations: Array of objects containing:
+        - zone: String zone name
+        - action: String ("Increase", "Maintain", "Reduce")
+        - priority: String ("High", "Medium", "Low")
+        - reasoning: String explanation
+      - environmental_correlations: Array of insights linking weather and sensor data
+      - alerts: Array of strings for critical issues requiring immediate attention
+
+    Example format:
+    {
+      "sensor_analysis": {
+        "summary": "Soil moisture levels are optimal across most zones. Zone 3 shows elevated moisture combined with high humidity, increasing fungal disease risk.",
+        "farm_id": "FARM-001",
+        "readings_count": 10,
+        "analysis_period": "2026-01-27 12:00:00 to 2026-01-27 14:30:00",
+        "zones_analyzed": ["Zone_1", "Zone_2", "Zone_3"],
+        "soil_health_metrics": [
+          {
+            "zone_name": "Zone_1",
+            "average_moisture": 65.2,
+            "average_temperature": 18.5,
+            "average_ph": 6.8,
+            "status": "Good"
+          },
+          {
+            "zone_name": "Zone_3",
+            "average_moisture": 78.5,
+            "average_temperature": 19.2,
+            "average_ph": 6.5,
+            "status": "Attention Needed"
+          }
+        ],
+        "irrigation_recommendations": [
+          {
+            "zone": "Zone_1",
+            "action": "Maintain",
+            "priority": "Low",
+            "reasoning": "Moisture levels optimal for current crop stage"
+          },
+          {
+            "zone": "Zone_3",
+            "action": "Reduce",
+            "priority": "High",
+            "reasoning": "High moisture combined with humid weather increases disease risk"
+          }
+        ],
+        "environmental_correlations": [
+          "High humidity (78%) and elevated soil moisture in Zone 3 create favorable conditions for fungal growth",
+          "Temperature range (15-19°C) across all zones is within optimal range for current crops"
+        ],
+        "alerts": [
+          "Zone 3: Reduce irrigation immediately - moisture at 78.5% with 78% humidity"
+        ]
+      }
+    }
+  agent: crop_sensor_agent

@@ -1,11 +1,14 @@
 #!/usr/bin/env python
 from random import randint
-
-from pydantic import BaseModel
-
 from crewai.flow import Flow, listen, start
 from crewai.flow.human_feedback import human_feedback, HumanFeedbackResult
 from terra_hawk_crewai.crews.poem_crew.poem_crew import PoemCrew
+from terra_hawk_crewai.tools.s3_report_writer import S3ReportWriter
+from terra_hawk_crewai.crews.core_crew.core_crew import CoreCrew
+from terra_hawk_crewai.crews.vision_crew.vision_crew import VisionCrew
+from terra_hawk_crewai.crews.compliance_crew.compliance_crew import ComplianceCrew
+from terra_hawk_crewai.crews.crop_crew.crop_crew import CropCrew
+from terra_hawk_crewai.crews.finance_crew.finance_crew import FinanceCrew
 
 class PoemFlow(Flow):
 
@@ -53,7 +56,7 @@ class PoemFlow(Flow):
 
 def kickoff():
     poem_flow = PoemFlow()
-    # poem_flow.plot()
+    poem_flow.plot()
     result = poem_flow.kickoff()
 
 

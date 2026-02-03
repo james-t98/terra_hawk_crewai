@@ -1,0 +1,39 @@
+compliance_task:
+  description: >
+    Conduct an analysis and interpretation on the following information:
+
+    {topic}
+
+    Provide your understanding of the information, and its relevance to our operations and potential influence or impact
+    on nitrogen emissions. Try and provide a logical response, classifying the information as positive, neutral, or negative.
+    In your response, state what you believe that means for our current agricultural processes, and other potential
+    meanings it could have. Provide actionable recommendations based on your analysis.
+    Create a comprehensive markdown compliance report with your analysis and recommendations.
+  expected_output: >
+    A neatly formatted JSON string containing the compliance analysis:
+    - compliance_analysis: Object containing:
+      - summary: Brief summary of compliance analysis
+      - topic: Topic analyzed
+      - date: Date of analysis
+      - classification: String ("Positive", "Neutral", or "Negative")
+      - operational_impact: Impact on current agricultural processes
+      - nitrogen_emissions_relevance: Relevance to nitrogen emissions
+      - recommendations: Array of recommended actions or considerations
+
+    Example format:
+    {
+      "compliance_analysis": {
+        "summary": "New EU regulations on nitrogen emissions will require enhanced monitoring and reporting systems.",
+        "topic": "EU Nitrogen Emissions Directive 2026",
+        "date": "2026-01-27",
+        "classification": "Neutral",
+        "operational_impact": "Requires implementation of continuous monitoring systems for nitrogen application and emissions tracking.",
+        "nitrogen_emissions_relevance": "Directly impacts nitrogen fertilizer application practices and requires documentation of emission reduction strategies.",
+        "recommendations": [
+          "Install soil nitrogen sensors across all zones to track application efficiency",
+          "Implement precision agriculture techniques to reduce nitrogen waste",
+          "Develop quarterly reporting system to comply with new EU directives"
+        ]
+      }
+    }
+  agent: compliance_officer

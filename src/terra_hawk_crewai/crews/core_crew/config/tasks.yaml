@@ -1,0 +1,75 @@
+master_chief_task:
+  description: >
+    You have received comprehensive operational data from all farm analysis systems for {farm_id} on {date}.
+    Your inputs include:
+
+    {vision_analysis}
+    {sensor_analysis}
+    {financial_analysis}
+    {compliance_analysis}
+
+    Your task is to synthesize all this information into a comprehensive Master Operations Report. Analyze cross-functional
+    patterns and correlations between different data sources. For example, correlate weather conditions with sensor readings,
+    link crop health from vision analysis to irrigation recommendations, connect financial ROI data with operational decisions,
+    and assess how compliance requirements impact operations.
+
+    Create a comprehensive markdown Master Operations Report structured as follows:
+    1. Executive Summary - High-level overview of farm status and key insights
+    2. Critical Alerts - Immediate actions required across all systems
+    3. Vision & Crop Health Analysis - Synthesis of image analysis findings
+    4. Environmental Conditions - Weather analysis and its agricultural impact
+    5. Soil & Irrigation Assessment - Sensor data analysis and recommendations
+    6. Financial Performance - Budget analysis, ROI by zone, and cost optimization
+    7. Compliance & Regulatory Status - Compliance analysis and requirements
+    8. Cross-Functional Insights - Connections between different data sources
+    9. Strategic Recommendations - Prioritized action items for farm management
+    10. Operational Priorities - Next 24-48 hour priorities by zone
+  expected_output: >
+    A neatly formatted JSON string containing the master analysis:
+    - master_analysis: Object containing:
+      - executive_summary: Brief executive summary (3-5 sentences)
+      - critical_alerts: Array of critical alerts requiring immediate attention
+      - vision_summary: Summary of crop health findings from vision analysis
+      - weather_summary: Summary of weather conditions and agricultural impact
+      - sensor_summary: Summary of soil health and irrigation needs
+      - financial_summary: Summary of financial performance and ROI
+      - compliance_summary: Summary of compliance status
+      - cross_functional_insights: Array of insights connecting different data sources
+      - strategic_recommendations: Array of prioritized strategic recommendations
+      - operational_priorities: Array of next 24-48 hour priorities by zone
+      - overall_farm_status: String ("Excellent", "Good", "Attention Needed", or "Critical")
+
+    Example format:
+    {
+      "master_analysis": {
+        "executive_summary": "Farm operations are performing well with 23% profit margin. Zone 2 shows highest ROI. Weather conditions favor operations with moderate disease risk. Zone 3 requires immediate irrigation reduction due to high moisture levels.",
+        "critical_alerts": [
+          "Zone 3: Reduce irrigation immediately - soil moisture at 78.5% with 78% humidity",
+          "Disease risk elevated in Zone 3 - apply fungicide within 24 hours"
+        ],
+        "vision_summary": "Crop health analysis shows 85% of crops in healthy condition. Minor disease detected in 3 zones requiring targeted intervention.",
+        "weather_summary": "Moderate rain with cool temperatures. Low fungal disease risk due to low temperature. Drone flights conditionally safe with wind near 20km/h threshold.",
+        "sensor_summary": "Soil moisture optimal across most zones. Zone 3 shows elevated moisture combined with high humidity, increasing disease risk. pH levels stable.",
+        "financial_summary": "Strong financial performance with 23% profit margin. Zone 2 shows highest ROI at 71.4%. Labor costs represent 42.9% of expenses—automation opportunities identified.",
+        "compliance_summary": "Nitrogen emissions monitoring compliant with EU regulations. New directives require enhanced reporting systems by Q2 2026.",
+        "cross_functional_insights": [
+          "High humidity (78%) combined with elevated soil moisture in Zone 3 creates perfect conditions for fungal growth—vision analysis confirms early disease signs in this zone",
+          "Zone 2's high ROI (71.4%) correlates with optimal soil conditions and proactive disease management",
+          "Weather-driven irrigation adjustments in Zone 1 have maintained optimal soil moisture while reducing operational costs by 15%"
+        ],
+        "strategic_recommendations": [
+          "Prioritize Zone 2 expansion—highest ROI at 71.4% with stable environmental conditions",
+          "Implement automated irrigation controls in Zone 3 to prevent over-watering during high humidity periods",
+          "Invest in soil nitrogen sensors across all zones to comply with upcoming EU regulations",
+          "Reduce labor costs through selective automation in Zones 1 and 4—potential 20% cost reduction"
+        ],
+        "operational_priorities": [
+          "Zone 3: Reduce irrigation by 40% immediately, apply fungicide within 24 hours",
+          "Zone 2: Maintain current operations—optimal conditions",
+          "All Zones: Monitor wind speeds for drone operations—currently at threshold",
+          "Zone 1: Schedule nitrogen application for next 48 hours when volatilization risk drops"
+        ],
+        "overall_farm_status": "Good"
+      }
+    }
+  agent: master_chief
