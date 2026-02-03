@@ -7,13 +7,7 @@ from crewai.flow import Flow, listen, start
 
 from terra_hawk_crewai.crews.poem_crew.poem_crew import PoemCrew
 
-
-class PoemState(BaseModel):
-    sentence_count: int = 1
-    poem: str = ""
-
-
-class PoemFlow(Flow[PoemState]):
+class PoemFlow(Flow):
 
     @start()
     def generate_sentence_count(self, crewai_trigger_payload: dict = None):
@@ -22,33 +16,29 @@ class PoemFlow(Flow[PoemState]):
         # Use trigger payload if available
         if crewai_trigger_payload:
             # Example: use trigger data to influence sentence count
-            self.state.sentence_count = crewai_trigger_payload.get('sentence_count', randint(1, 5))
+            self.state["sentence_count"] = crewai_trigger_payload.get('sentence_count', randint(1, 5))
             print(f"Using trigger payload: {crewai_trigger_payload}")
         else:
-            self.state.sentence_count = randint(1, 5)
+            self.state["sentence_count"] = randint(1, 5)
 
     @listen(generate_sentence_count)
     def generate_poem(self):
-        print("Generating poem")
         result = (
             PoemCrew()
             .crew()
-            .kickoff(inputs={"sentence_count": self.state.sentence_count})
+            .kickoff(inputs={"sentence_count": self.state["sentence_count"]})
         )
 
         print("Poem generated", result.raw)
-        self.state.poem = result.raw
+        self.state["poem"] = result.raw
 
-    @listen(generate_poem)
-    def save_poem(self):
-        print("Saving poem")
-        with open("poem.txt", "w") as f:
-            f.write(self.state.poem)
+        return self.state["poem"]
 
 
 def kickoff():
     poem_flow = PoemFlow()
-    poem_flow.kickoff()
+    # poem_flow.plot()
+    result = poem_flow.kickoff()
 
 
 def plot():
