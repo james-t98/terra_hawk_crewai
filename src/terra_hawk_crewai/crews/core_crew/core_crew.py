@@ -15,7 +15,6 @@ class MasterAnalysis(BaseModel):
     vision_summary: str = Field(..., description="Summary of crop health findings from vision analysis")
     weather_summary: str = Field(..., description="Summary of weather conditions and agricultural impact")
     sensor_summary: str = Field(..., description="Summary of soil health and irrigation needs")
-    financial_summary: str = Field(..., description="Summary of financial performance and ROI")
     compliance_summary: str = Field(..., description="Summary of compliance status")
     cross_functional_insights: List[str] = Field(..., description="Insights connecting different data sources")
     strategic_recommendations: List[str] = Field(..., description="Prioritized strategic recommendations")
@@ -70,7 +69,7 @@ class CoreCrew():
 
             master_analysis = data['master_analysis']
             required_analysis_fields = ['executive_summary', 'critical_alerts', 'vision_summary', 'weather_summary',
-                                       'sensor_summary', 'financial_summary', 'compliance_summary',
+                                       'sensor_summary', 'compliance_summary',
                                        'cross_functional_insights', 'strategic_recommendations',
                                        'operational_priorities', 'overall_farm_status']
             missing_analysis_fields = [field for field in required_analysis_fields if field not in master_analysis]

@@ -5,7 +5,6 @@ master_chief_task:
 
     {vision_analysis}
     {sensor_analysis}
-    {financial_analysis}
     {compliance_analysis}
 
     Your task is to synthesize all this information into a comprehensive Master Operations Report. Analyze cross-functional
@@ -19,11 +18,10 @@ master_chief_task:
     3. Vision & Crop Health Analysis - Synthesis of image analysis findings
     4. Environmental Conditions - Weather analysis and its agricultural impact
     5. Soil & Irrigation Assessment - Sensor data analysis and recommendations
-    6. Financial Performance - Budget analysis, ROI by zone, and cost optimization
-    7. Compliance & Regulatory Status - Compliance analysis and requirements
-    8. Cross-Functional Insights - Connections between different data sources
-    9. Strategic Recommendations - Prioritized action items for farm management
-    10. Operational Priorities - Next 24-48 hour priorities by zone
+    6. Compliance & Regulatory Status - Compliance analysis and requirements
+    7. Cross-Functional Insights - Connections between different data sources
+    8. Strategic Recommendations - Prioritized action items for farm management
+    9. Operational Priorities - Next 24-48 hour priorities by zone
   expected_output: >
     A neatly formatted JSON string containing the master analysis:
     - master_analysis: Object containing:
@@ -32,7 +30,6 @@ master_chief_task:
       - vision_summary: Summary of crop health findings from vision analysis
       - weather_summary: Summary of weather conditions and agricultural impact
       - sensor_summary: Summary of soil health and irrigation needs
-      - financial_summary: Summary of financial performance and ROI
       - compliance_summary: Summary of compliance status
       - cross_functional_insights: Array of insights connecting different data sources
       - strategic_recommendations: Array of prioritized strategic recommendations
@@ -50,7 +47,6 @@ master_chief_task:
         "vision_summary": "Crop health analysis shows 85% of crops in healthy condition. Minor disease detected in 3 zones requiring targeted intervention.",
         "weather_summary": "Moderate rain with cool temperatures. Low fungal disease risk due to low temperature. Drone flights conditionally safe with wind near 20km/h threshold.",
         "sensor_summary": "Soil moisture optimal across most zones. Zone 3 shows elevated moisture combined with high humidity, increasing disease risk. pH levels stable.",
-        "financial_summary": "Strong financial performance with 23% profit margin. Zone 2 shows highest ROI at 71.4%. Labor costs represent 42.9% of expenses—automation opportunities identified.",
         "compliance_summary": "Nitrogen emissions monitoring compliant with EU regulations. New directives require enhanced reporting systems by Q2 2026.",
         "cross_functional_insights": [
           "High humidity (78%) combined with elevated soil moisture in Zone 3 creates perfect conditions for fungal growth—vision analysis confirms early disease signs in this zone",

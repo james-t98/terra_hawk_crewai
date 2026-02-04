@@ -2,7 +2,6 @@ from terra_hawk_crewai.tools.s3_image_retriever import S3ImageRetriever
 from terra_hawk_crewai.tools.s3_report_writer import S3ReportWriter
 from terra_hawk_crewai.tools.weather_api_tool import WeatherAPITool
 from terra_hawk_crewai.tools.sensor_data_retriever import SensorDataRetriever
-from terra_hawk_crewai.tools.finance_retriever_tool import FinanceRetriever
 from terra_hawk_crewai.tools.dynamodb_vision_retriever import DynamoDBVisionRetriever
 
 
@@ -11,6 +10,5 @@ __all__ = [
     'S3ReportWriter',
     'WeatherAPITool',
     'SensorDataRetriever',
-    'FinanceRetriever',
     'DynamoDBVisionRetriever',
 ]

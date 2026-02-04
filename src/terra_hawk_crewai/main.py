@@ -8,7 +8,6 @@ from terra_hawk_crewai.tools.s3_report_writer import S3ReportWriter
 from terra_hawk_crewai.crews.core_crew.core_crew import CoreCrew
 from terra_hawk_crewai.crews.compliance_crew.compliance_crew import ComplianceCrew
 from terra_hawk_crewai.crews.crop_crew.crop_crew import CropCrew
-from terra_hawk_crewai.crews.finance_crew.finance_crew import FinanceCrew
 
 class SmartFarmFlow(Flow):
     @start()
@@ -43,21 +42,6 @@ class SmartFarmFlow(Flow):
 
         return "Crop Crew was run"
 
-    @listen(start_flow)
-    def initiate_finance_crew(self):
-        finance_result = (
-            FinanceCrew()
-            .crew()
-            .kickoff(
-                inputs={
-                    "date": self.state["date"],
-                    "farm_id": os.environ.get("FARM_ID"),
-                }
-            )
-        )
-        
-        self.state["financial_analysis"] = finance_result.raw
-        return "Finance Crew was run"
 
     @listen(initiate_crop_crew)
     def initiate_compliance_crew(self):
@@ -75,7 +59,7 @@ class SmartFarmFlow(Flow):
         self.state["compliance_analysis"] = compliance_result.raw
         return "Compliance Crew was run"
     
-    @listen(and_(initiate_crop_crew, initiate_finance_crew, initiate_compliance_crew))
+    @listen(and_(initiate_crop_crew, initiate_compliance_crew))
     @human_feedback(
         message="Would you like to submit the reports?",
         emit=["yes", "no"],
@@ -89,7 +73,6 @@ class SmartFarmFlow(Flow):
             .kickoff(inputs={
                 "vision_analysis": self.state["vision_analysis"],
                 "sensor_analysis": self.state["sensor_analysis"],
-                "financial_analysis": self.state["financial_analysis"],
                 "compliance_analysis": self.state["compliance_analysis"],
                 "date": self.state["date"],
                 "farm_id": os.environ.get("FARM_ID"),
@@ -98,7 +81,7 @@ class SmartFarmFlow(Flow):
         )
         self.state["summary"] = core_result.raw
 
-        reports = [self.state["vision_analysis"], self.state["sensor_analysis"], self.state["financial_analysis"], self.state["compliance_analysis"]]
+        reports = [self.state["vision_analysis"], self.state["sensor_analysis"], self.state["compliance_analysis"]]
         for report in reports:
             if report == "":
                 return "no"
@@ -123,11 +106,6 @@ class SmartFarmFlow(Flow):
                 "content": self.state["sensor_analysis"],
                 "type": "sensor_analysis",
                 "name": "Sensor Analysis"
-            },
-            {
-                "content": self.state["financial_analysis"],
-                "type": "financial_analysis",
-                "name": "Financial Analysis"
             },
             {
                 "content": self.state["compliance_analysis"],

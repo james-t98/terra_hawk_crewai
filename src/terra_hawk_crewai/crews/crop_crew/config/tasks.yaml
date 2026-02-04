@@ -135,7 +135,7 @@ crop_sensor_task:
 
 vision_analyzer_task:
   description: >
-    Use the DynamoDB Vision Data Retriever tool to retrieve computer vision detection data for {farm_id}.
+    Use the DynamoDB Vision Data Retriever tool to retrieve computer vision detection data for {farm_id} and date {date}.
     Optionally filter by date if needed. Analyze the detection records including bounding boxes, confidence scores,
     health classifications, and detection metrics. Provide comprehensive insights on:
     1. Overall crop health based on healthy vs unhealthy detection ratios
