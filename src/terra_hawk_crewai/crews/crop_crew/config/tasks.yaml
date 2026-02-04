@@ -132,3 +132,114 @@ crop_sensor_task:
       }
     }
   agent: crop_sensor_agent
+
+image_retriever_task:
+  description: >
+    Using the s3_image_retriever tool, make a REST call to the API with the following parameters:
+    - bucket_name: {bucket_name}
+    - num_images: {num_images}
+    - region: {region}
+  expected_output: >
+    A neatly formatted JSON string containing:
+    - bucket_name: The S3 bucket name
+    - num_images_found: Total number of images retrieved
+    - region: AWS region
+    - images: List of image objects, each containing:
+      - key: The S3 object key/filename
+      - content_type: MIME type of the image
+      - s3_uri: Full S3 URI (s3://bucket/key)
+      - presigned_url: Temporary authenticated URL for direct image access
+      - s3_console_url: AWS Console URL for the image
+
+    Example format:
+    {
+      "bucket_name": "drone-images-replicate",
+      "num_images_found": 2,
+      "region": "eu-west-1",
+      "images": [
+        {
+          "key": "image1.jpg",
+          "content_type": "image/jpeg",
+          "s3_uri": "s3://bucket/image1.jpg",
+          "presigned_url": "https://bucket.s3.amazonaws.com/image1.jpg?AWSAccessKeyId=...",
+          "s3_console_url": "https://console.aws.amazon.com/..."
+        }
+      ]
+    }
+  agent: image_retriever
+
+image_analyzer_task:
+  description: >
+    Using the image related data input from the previous task, retrieve the images using the presigned_url,
+    and provide an analytical interpreation related to agricultural farming and operations.
+    Create a comprehensive markdown report that includes:
+    1. A narrative analysis section with findings and insights
+    2. A JSON data section with structured analysis for each image (Key, Description, Classification, Confidence)
+  expected_output: >
+    A neatly formatted JSON string containing the analysis data:
+    - analysis_data: JSON array with analysis for each image containing:
+      - Key: The image key
+      - Description: A simple analytical description
+      - Classification: A classification between [Healthy, Diseased]
+      - Confidence: A confidence score between 0.0 and 100.0
+
+    Example format:
+    {
+      "analysis_data": [
+        {
+          "Key": "image1.jpg",
+          "Description": "A healthy plant, almost ready and ripe",
+          "Classification": "Healthy",
+          "Confidence": 73.5
+        },
+        {
+          "Key": "image2.jpg",
+          "Description": "Plant showing signs of disease",
+          "Classification": "Diseased",
+          "Confidence": 85.2
+        }
+      ]
+    }
+  agent: image_analyzer
+
+aggregation_task:
+  description: >
+    Combine the outputs from the weather analysis, sensor analysis, and vision/image analysis tasks
+    into a single comprehensive JSON report. You have access to the complete outputs from all previous tasks.
+    Extract the relevant data from each analysis and structure them into the combined format.
+    Ensure all three analysis sections (weather_analysis, sensor_analysis, vision_analysis) are included
+    with their complete data structures intact.
+  expected_output: >
+    A neatly formatted JSON string containing all three analyses:
+    {
+      "weather_analysis": {
+        "summary": "...",
+        "location": "...",
+        "date": "...",
+        "weather_data": { ... },
+        "air_quality": { ... },
+        "agricultural_assessment": { ... }
+      },
+      "sensor_analysis": {
+        "summary": "...",
+        "farm_id": "...",
+        "readings_count": ...,
+        "analysis_period": "...",
+        "zones_analyzed": [...],
+        "soil_health_metrics": [...],
+        "irrigation_recommendations": [...],
+        "environmental_correlations": [...],
+        "alerts": [...]
+      },
+      "vision_analysis": {
+        "analysis_data": [
+          {
+            "Key": "...",
+            "Description": "...",
+            "Classification": "...",
+            "Confidence": ...
+          }
+        ]
+      }
+    }
+  agent: analysis_aggregator

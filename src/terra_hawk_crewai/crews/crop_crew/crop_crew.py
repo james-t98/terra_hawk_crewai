@@ -1,7 +1,7 @@
 from crewai import Agent, Crew, Process, Task, TaskOutput
 from crewai.project import CrewBase, agent, crew, task
 from crewai.agents.agent_builder.base_agent import BaseAgent
-from terra_hawk_crewai.tools import WeatherAPITool, SensorDataRetriever
+from terra_hawk_crewai.tools import WeatherAPITool, SensorDataRetriever, S3ImageRetriever
 from typing import List, Tuple, Any
 from pydantic import BaseModel, Field
 import json
@@ -87,6 +87,29 @@ class SensorAnalysisResult(BaseModel):
     """Structured output for the crop sensor task"""
     sensor_analysis: SensorAnalysis = Field(..., description="Sensor analysis data")
 
+class ImageAnalysis(BaseModel):
+    """Structured output for individual image analysis"""
+    Key: str = Field(..., description="The image key/filename")
+    Description: str = Field(..., description="Analytical description of the image")
+    Classification: str = Field(..., description="Classification of plant health: Healthy or Diseased")
+    Confidence: float = Field(..., description="Confidence score between 0.0 and 100.0", ge=0.0, le=100.0)
+
+
+class ImageAnalyzerResult(BaseModel):
+    """Structured output for the image analyzer task"""
+    analysis_data: List[ImageAnalysis] = Field(..., description="List of analysis results for each image")
+
+
+class VisionAnalysis(BaseModel):
+    """Vision analysis from image processing"""
+    analysis_data: List[ImageAnalysis] = Field(..., description="List of analysis results for each image")
+
+
+class CombinedCropAnalysis(BaseModel):
+    """Combined output from all crop crew analyses"""
+    weather_analysis: WeatherAnalysis = Field(..., description="Weather analysis data")
+    sensor_analysis: SensorAnalysis = Field(..., description="Sensor analysis data")
+    vision_analysis: VisionAnalysis = Field(..., description="Vision/image analysis data")
 
 @CrewBase
 class CropCrew():
@@ -266,6 +289,87 @@ class CropCrew():
         except Exception as e:
             return (False, f"Validation error: {str(e)}. Please check the output format.")
 
+    def validate_image_retriever_output(self, result: TaskOutput) -> Tuple[bool, Any]:
+        """
+        Validates the output from the image_retriever_task.
+        Ensures the result contains valid JSON with required fields and at least one image.
+
+        Args:
+            result: TaskOutput from the image_retriever_task
+
+        Returns:
+            Tuple of (is_valid, content_or_error_message)
+        """
+        try:
+            # Parse the JSON output
+            data = json.loads(result.raw)
+
+            # Check for required top-level fields
+            required_fields = ['bucket_name', 'num_images_found', 'region', 'images']
+            missing_fields = [field for field in required_fields if field not in data]
+
+            if missing_fields:
+                return (False, f"Missing required fields: {', '.join(missing_fields)}. Please ensure all fields are included.")
+
+            # Validate images array
+            if not isinstance(data['images'], list):
+                return (False, "The 'images' field must be a list. Please return a valid array of images.")
+
+            if len(data['images']) == 0:
+                return (False, "No images found in the response. Please ensure the API returned at least one image.")
+
+            # Validate each image has required fields
+            required_image_fields = ['key', 'content_type', 's3_uri', 'presigned_url']
+            for idx, image in enumerate(data['images']):
+                missing_image_fields = [field for field in required_image_fields if field not in image]
+                if missing_image_fields:
+                    return (False, f"Image at index {idx} is missing fields: {', '.join(missing_image_fields)}. Please ensure all image fields are included.")
+
+            # Validate num_images_found matches actual count
+            if data['num_images_found'] != len(data['images']):
+                return (False, f"num_images_found ({data['num_images_found']}) does not match actual image count ({len(data['images'])}). Please correct the count.")
+
+            return (True, result.raw)
+
+        except json.JSONDecodeError:
+            return (False, "Output is not valid JSON. Please return a properly formatted JSON string.")
+        except Exception as e:
+            return (False, f"Validation error: {str(e)}. Please check the output format.")
+
+    def validate_combined_output(self, result: TaskOutput) -> Tuple[bool, Any]:
+        """
+        Validates the combined output from all crop crew tasks.
+        Ensures the result contains weather_analysis, sensor_analysis, and vision_analysis.
+
+        Args:
+            result: TaskOutput from the aggregation task
+
+        Returns:
+            Tuple of (is_valid, content_or_error_message)
+        """
+        try:
+            # Parse the JSON output
+            data = json.loads(result.raw)
+
+            # Check for required top-level fields
+            required_fields = ['weather_analysis', 'sensor_analysis', 'vision_analysis']
+            missing_fields = [field for field in required_fields if field not in data]
+
+            if missing_fields:
+                return (False, f"Missing required fields: {', '.join(missing_fields)}. Please ensure all analysis sections are included.")
+
+            # Validate each section is a dictionary
+            for field in required_fields:
+                if not isinstance(data[field], dict):
+                    return (False, f"The '{field}' field must be an object.")
+
+            return (True, result.raw)
+
+        except json.JSONDecodeError:
+            return (False, "Output is not valid JSON. Please return a properly formatted JSON string.")
+        except Exception as e:
+            return (False, f"Validation error: {str(e)}. Please check the output format.")
+
     @agent
     def weather_analyst(self) -> Agent:
         return Agent(
@@ -283,6 +387,28 @@ class CropCrew():
             tools=[SensorDataRetriever()],
             reasoning=True,
             allow_delegation=True
+        )
+    
+    @agent
+    def image_retriever(self) -> Agent:
+        return Agent(
+            config=self.agents_config['image_retriever'], # type: ignore[index]
+            verbose=True,
+            tools=[S3ImageRetriever()]
+        )
+    
+    @agent
+    def image_analyzer(self) -> Agent:
+        return Agent(
+            config=self.agents_config['image_analyzer'], # type: ignore[index]
+            verbose=True
+        )
+
+    @agent
+    def analysis_aggregator(self) -> Agent:
+        return Agent(
+            config=self.agents_config['analysis_aggregator'], # type: ignore[index]
+            verbose=True
         )
 
     # To learn more about structured task outputs,
@@ -302,6 +428,29 @@ class CropCrew():
             config=self.tasks_config['crop_sensor_task'], # type: ignore[index]
             guardrail=self.validate_sensor_analysis_output,
             output_pydantic=SensorAnalysisResult,
+        )
+    
+    @task
+    def image_retriever_task(self) -> Task:
+        return Task(
+            config=self.tasks_config['image_retriever_task'], # type: ignore[index]
+            tools=[S3ImageRetriever()],
+            guardrail=self.validate_image_retriever_output
+        )
+    
+    @task
+    def image_analyzer_task(self) -> Task:
+        return Task(
+            config=self.tasks_config['image_analyzer_task'], # type: ignore[index]
+            output_pydantic=ImageAnalyzerResult
+        )
+
+    @task
+    def aggregation_task(self) -> Task:
+        return Task(
+            config=self.tasks_config['aggregation_task'], # type: ignore[index]
+            guardrail=self.validate_combined_output,
+            output_pydantic=CombinedCropAnalysis
         )
 
     @crew

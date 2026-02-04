@@ -1,11 +1,11 @@
 #!/usr/bin/env python
 import os
+import json
 from datetime import datetime
 from crewai.flow import Flow, listen, start, and_
 from crewai.flow.human_feedback import human_feedback, HumanFeedbackResult
 from terra_hawk_crewai.tools.s3_report_writer import S3ReportWriter
 from terra_hawk_crewai.crews.core_crew.core_crew import CoreCrew
-from terra_hawk_crewai.crews.vision_crew.vision_crew import VisionCrew
 from terra_hawk_crewai.crews.compliance_crew.compliance_crew import ComplianceCrew
 from terra_hawk_crewai.crews.crop_crew.crop_crew import CropCrew
 from terra_hawk_crewai.crews.finance_crew.finance_crew import FinanceCrew
@@ -16,22 +16,22 @@ class SmartFarmFlow(Flow):
         self.state["date"] = datetime.now().strftime("%A, %d %m %Y")
         return ""
 
-    @listen(start_flow)
-    def initiate_vision_crew(self):
-        vision_result = (
-            VisionCrew()
-            .crew()
-            .kickoff(
-                inputs={
-                    "bucket_name": os.environ.get("S3_BUCKET"),
-                    "num_images": os.environ.get("NUM_IMAGES"),
-                    "region": os.environ.get("AWS_REGION_NAME"),
-                }
-            )
-        )
+    # @listen(start_flow)
+    # def initiate_vision_crew(self):
+    #     vision_result = (
+    #         VisionCrew()
+    #         .crew()
+    #         .kickoff(
+    #             inputs={
+    #                 "bucket_name": os.environ.get("S3_BUCKET"),
+    #                 "num_images": os.environ.get("NUM_IMAGES"),
+    #                 "region": os.environ.get("AWS_REGION_NAME"),
+    #             }
+    #         )
+    #     )
 
-        self.state["vision_analysis"] = vision_result.raw
-        return "Vision Crew was run"
+    #     self.state["vision_analysis"] = vision_result.raw
+    #     return "Vision Crew was run"
 
     @listen(start_flow)
     def initiate_crop_crew(self):
@@ -43,11 +43,24 @@ class SmartFarmFlow(Flow):
                     "date": self.state["date"],
                     "location": os.environ.get("LOCATION"),
                     "farm_id": os.environ.get("FARM_ID"),
+                    "bucket_name": os.environ.get("S3_BUCKET"),
+                    "num_images": os.environ.get("NUM_IMAGES"),
+                    "region": os.environ.get("AWS_REGION_NAME"),
                 }
             )
         )
 
-        self.state["sensor_analysis"] = crop_result.raw
+        # Parse the combined analysis result
+        combined_analysis = json.loads(crop_result.raw)
+
+        # Extract individual analyses from the combined output
+        self.state["vision_analysis"] = json.dumps(combined_analysis.get("vision_analysis", {}))
+        self.state["sensor_analysis"] = json.dumps(combined_analysis.get("sensor_analysis", {}))
+        self.state["weather_analysis"] = json.dumps(combined_analysis.get("weather_analysis", {}))
+
+        # Store the full combined analysis as well
+        self.state["crop_and_vision_analysis"] = crop_result.raw
+
         return "Crop Crew was run"
 
     @listen(start_flow)
@@ -66,7 +79,7 @@ class SmartFarmFlow(Flow):
         self.state["financial_analysis"] = finance_result.raw
         return "Finance Crew was run"
 
-    @listen(initiate_vision_crew)
+    @listen(initiate_crop_crew)
     def initiate_compliance_crew(self):
         compliance_result = (
             ComplianceCrew()
@@ -82,7 +95,7 @@ class SmartFarmFlow(Flow):
         self.state["compliance_analysis"] = compliance_result.raw
         return "Compliance Crew was run"
     
-    @listen(and_(initiate_vision_crew, initiate_crop_crew, initiate_finance_crew, initiate_compliance_crew))
+    @listen(and_(initiate_crop_crew, initiate_finance_crew, initiate_compliance_crew))
     @human_feedback(
         message="Would you like to submit the reports?",
         emit=["yes", "no"],
