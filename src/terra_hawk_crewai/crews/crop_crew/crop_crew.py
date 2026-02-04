@@ -1,7 +1,7 @@
 from crewai import Agent, Crew, Process, Task, TaskOutput
 from crewai.project import CrewBase, agent, crew, task
 from crewai.agents.agent_builder.base_agent import BaseAgent
-from terra_hawk_crewai.tools import WeatherAPITool, SensorDataRetriever, S3ImageRetriever
+from terra_hawk_crewai.tools import WeatherAPITool, SensorDataRetriever, DynamoDBVisionRetriever
 from typing import List, Tuple, Any
 from pydantic import BaseModel, Field
 import json
@@ -87,22 +87,60 @@ class SensorAnalysisResult(BaseModel):
     """Structured output for the crop sensor task"""
     sensor_analysis: SensorAnalysis = Field(..., description="Sensor analysis data")
 
-class ImageAnalysis(BaseModel):
-    """Structured output for individual image analysis"""
-    Key: str = Field(..., description="The image key/filename")
-    Description: str = Field(..., description="Analytical description of the image")
-    Classification: str = Field(..., description="Classification of plant health: Healthy or Diseased")
-    Confidence: float = Field(..., description="Confidence score between 0.0 and 100.0", ge=0.0, le=100.0)
+class BoundingBox(BaseModel):
+    """Bounding box coordinates for detections"""
+    x: float = Field(..., description="X coordinate")
+    y: float = Field(..., description="Y coordinate")
+    width: float = Field(..., description="Width of bounding box")
+    height: float = Field(..., description="Height of bounding box")
 
 
-class ImageAnalyzerResult(BaseModel):
-    """Structured output for the image analyzer task"""
-    analysis_data: List[ImageAnalysis] = Field(..., description="List of analysis results for each image")
+class Detection(BaseModel):
+    """Individual detection from computer vision model"""
+    label: str = Field(..., description="Detection label/class name")
+    class_id: int = Field(..., description="Class ID from model")
+    confidence: float = Field(..., description="Confidence score (0-100)", ge=0.0, le=100.0)
+    isHealthy: bool = Field(..., description="Health status of detected crop")
+    bbox: BoundingBox = Field(..., description="Bounding box coordinates")
+
+
+class DetectionMetrics(BaseModel):
+    """Performance metrics from vision system"""
+    detection_count: int = Field(..., description="Total number of detections")
+    fps: float = Field(..., description="Frames per second")
+    latency: float = Field(..., description="Processing latency in ms")
+
+
+class VisionRecord(BaseModel):
+    """Complete vision detection record"""
+    timestamp: str = Field(..., description="ISO timestamp of detection")
+    date: str = Field(..., description="Date in YYYY-MM-DD format")
+    crop_name: str = Field(..., description="Name of the crop being monitored")
+    field_name: str = Field(..., description="Field or zone name")
+    primary_class: str = Field(..., description="Primary detection class")
+    detections: List[Detection] = Field(..., description="List of all detections")
+    metrics: DetectionMetrics = Field(..., description="Performance metrics")
+    s3_url: str = Field(..., description="S3 URL of the image")
+    https_url: str = Field(..., description="HTTPS URL for image access")
+
+
+class VisionAnalysisSummary(BaseModel):
+    """Summary statistics for vision analysis"""
+    total_records: int = Field(..., description="Total number of detection records analyzed")
+    total_detections: int = Field(..., description="Total number of individual detections")
+    healthy_detections: int = Field(..., description="Number of healthy crop detections")
+    unhealthy_detections: int = Field(..., description="Number of unhealthy crop detections")
+    health_percentage: float = Field(..., description="Percentage of healthy detections", ge=0.0, le=100.0)
+    crop_types: List[str] = Field(..., description="List of crop types detected")
+    field_names: List[str] = Field(..., description="List of field names covered")
+    detection_classes: List[str] = Field(..., description="List of detection classes found")
+    key_findings: List[str] = Field(..., description="Key analytical findings and insights")
 
 
 class VisionAnalysis(BaseModel):
-    """Vision analysis from image processing"""
-    analysis_data: List[ImageAnalysis] = Field(..., description="List of analysis results for each image")
+    """Vision analysis from DynamoDB detection data"""
+    summary: VisionAnalysisSummary = Field(..., description="Summary statistics and insights")
+    records: List[VisionRecord] = Field(..., description="Detailed detection records")
 
 
 class CombinedCropAnalysis(BaseModel):
@@ -289,53 +327,6 @@ class CropCrew():
         except Exception as e:
             return (False, f"Validation error: {str(e)}. Please check the output format.")
 
-    def validate_image_retriever_output(self, result: TaskOutput) -> Tuple[bool, Any]:
-        """
-        Validates the output from the image_retriever_task.
-        Ensures the result contains valid JSON with required fields and at least one image.
-
-        Args:
-            result: TaskOutput from the image_retriever_task
-
-        Returns:
-            Tuple of (is_valid, content_or_error_message)
-        """
-        try:
-            # Parse the JSON output
-            data = json.loads(result.raw)
-
-            # Check for required top-level fields
-            required_fields = ['bucket_name', 'num_images_found', 'region', 'images']
-            missing_fields = [field for field in required_fields if field not in data]
-
-            if missing_fields:
-                return (False, f"Missing required fields: {', '.join(missing_fields)}. Please ensure all fields are included.")
-
-            # Validate images array
-            if not isinstance(data['images'], list):
-                return (False, "The 'images' field must be a list. Please return a valid array of images.")
-
-            if len(data['images']) == 0:
-                return (False, "No images found in the response. Please ensure the API returned at least one image.")
-
-            # Validate each image has required fields
-            required_image_fields = ['key', 'content_type', 's3_uri', 'presigned_url']
-            for idx, image in enumerate(data['images']):
-                missing_image_fields = [field for field in required_image_fields if field not in image]
-                if missing_image_fields:
-                    return (False, f"Image at index {idx} is missing fields: {', '.join(missing_image_fields)}. Please ensure all image fields are included.")
-
-            # Validate num_images_found matches actual count
-            if data['num_images_found'] != len(data['images']):
-                return (False, f"num_images_found ({data['num_images_found']}) does not match actual image count ({len(data['images'])}). Please correct the count.")
-
-            return (True, result.raw)
-
-        except json.JSONDecodeError:
-            return (False, "Output is not valid JSON. Please return a properly formatted JSON string.")
-        except Exception as e:
-            return (False, f"Validation error: {str(e)}. Please check the output format.")
-
     def validate_combined_output(self, result: TaskOutput) -> Tuple[bool, Any]:
         """
         Validates the combined output from all crop crew tasks.
@@ -388,20 +379,13 @@ class CropCrew():
             reasoning=True,
             allow_delegation=True
         )
-    
+
     @agent
-    def image_retriever(self) -> Agent:
+    def vision_analyzer(self) -> Agent:
         return Agent(
-            config=self.agents_config['image_retriever'], # type: ignore[index]
+            config=self.agents_config['vision_analyzer'], # type: ignore[index]
             verbose=True,
-            tools=[S3ImageRetriever()]
-        )
-    
-    @agent
-    def image_analyzer(self) -> Agent:
-        return Agent(
-            config=self.agents_config['image_analyzer'], # type: ignore[index]
-            verbose=True
+            tools=[DynamoDBVisionRetriever()]
         )
 
     @agent
@@ -429,20 +413,12 @@ class CropCrew():
             guardrail=self.validate_sensor_analysis_output,
             output_pydantic=SensorAnalysisResult,
         )
-    
+
     @task
-    def image_retriever_task(self) -> Task:
+    def vision_analyzer_task(self) -> Task:
         return Task(
-            config=self.tasks_config['image_retriever_task'], # type: ignore[index]
-            tools=[S3ImageRetriever()],
-            guardrail=self.validate_image_retriever_output
-        )
-    
-    @task
-    def image_analyzer_task(self) -> Task:
-        return Task(
-            config=self.tasks_config['image_analyzer_task'], # type: ignore[index]
-            output_pydantic=ImageAnalyzerResult
+            config=self.tasks_config['vision_analyzer_task'], # type: ignore[index]
+            output_pydantic=VisionAnalysis
         )
 
     @task

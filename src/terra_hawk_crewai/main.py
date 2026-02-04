@@ -16,23 +16,6 @@ class SmartFarmFlow(Flow):
         self.state["date"] = datetime.now().strftime("%A, %d %m %Y")
         return ""
 
-    # @listen(start_flow)
-    # def initiate_vision_crew(self):
-    #     vision_result = (
-    #         VisionCrew()
-    #         .crew()
-    #         .kickoff(
-    #             inputs={
-    #                 "bucket_name": os.environ.get("S3_BUCKET"),
-    #                 "num_images": os.environ.get("NUM_IMAGES"),
-    #                 "region": os.environ.get("AWS_REGION_NAME"),
-    #             }
-    #         )
-    #     )
-
-    #     self.state["vision_analysis"] = vision_result.raw
-    #     return "Vision Crew was run"
-
     @listen(start_flow)
     def initiate_crop_crew(self):
         crop_result = (
@@ -43,9 +26,6 @@ class SmartFarmFlow(Flow):
                     "date": self.state["date"],
                     "location": os.environ.get("LOCATION"),
                     "farm_id": os.environ.get("FARM_ID"),
-                    "bucket_name": os.environ.get("S3_BUCKET"),
-                    "num_images": os.environ.get("NUM_IMAGES"),
-                    "region": os.environ.get("AWS_REGION_NAME"),
                 }
             )
         )

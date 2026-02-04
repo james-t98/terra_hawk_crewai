@@ -133,78 +133,71 @@ crop_sensor_task:
     }
   agent: crop_sensor_agent
 
-image_retriever_task:
+vision_analyzer_task:
   description: >
-    Using the s3_image_retriever tool, make a REST call to the API with the following parameters:
-    - bucket_name: {bucket_name}
-    - num_images: {num_images}
-    - region: {region}
+    Use the DynamoDB Vision Data Retriever tool to retrieve computer vision detection data for {farm_id}.
+    Optionally filter by date if needed. Analyze the detection records including bounding boxes, confidence scores,
+    health classifications, and detection metrics. Provide comprehensive insights on:
+    1. Overall crop health based on healthy vs unhealthy detection ratios
+    2. Patterns in detection confidence scores and what they indicate
+    3. Field-specific analysis showing which areas have more health issues
+    4. Temporal patterns if analyzing multiple timestamps
+    5. Actionable recommendations based on the detection data
+    Create a comprehensive analysis that synthesizes all detection records into meaningful agricultural insights.
   expected_output: >
-    A neatly formatted JSON string containing:
-    - bucket_name: The S3 bucket name
-    - num_images_found: Total number of images retrieved
-    - region: AWS region
-    - images: List of image objects, each containing:
-      - key: The S3 object key/filename
-      - content_type: MIME type of the image
-      - s3_uri: Full S3 URI (s3://bucket/key)
-      - presigned_url: Temporary authenticated URL for direct image access
-      - s3_console_url: AWS Console URL for the image
-
-    Example format:
+    A neatly formatted JSON string containing the vision analysis:
     {
-      "bucket_name": "drone-images-replicate",
-      "num_images_found": 2,
-      "region": "eu-west-1",
-      "images": [
+      "summary": {
+        "total_records": 25,
+        "total_detections": 150,
+        "healthy_detections": 120,
+        "unhealthy_detections": 30,
+        "health_percentage": 80.0,
+        "crop_types": ["Raspberry", "Tomato"],
+        "field_names": ["West Field", "East Field"],
+        "detection_classes": ["leaf", "fruit", "stem"],
+        "key_findings": [
+          "West Field shows 25% unhealthy detections, requiring immediate attention",
+          "Average detection confidence of 85% indicates reliable model performance",
+          "Fruit detections in East Field show consistently high health scores"
+        ]
+      },
+      "records": [
         {
-          "key": "image1.jpg",
-          "content_type": "image/jpeg",
-          "s3_uri": "s3://bucket/image1.jpg",
-          "presigned_url": "https://bucket.s3.amazonaws.com/image1.jpg?AWSAccessKeyId=...",
-          "s3_console_url": "https://console.aws.amazon.com/..."
+          "timestamp": "2026-02-04T11:02:24.121332",
+          "date": "2026-02-04",
+          "crop_name": "Raspberry",
+          "field_name": "West Field",
+          "primary_class": "leaf",
+          "detections": [
+            {
+              "label": "leaf",
+              "class_id": 0,
+              "confidence": 88.9,
+              "isHealthy": false,
+              "bbox": {
+                "x": 1.41,
+                "y": 8.12,
+                "width": 95.16,
+                "height": 91.25
+              }
+            }
+          ],
+          "metrics": {
+            "detection_count": 1,
+            "fps": 25.6,
+            "latency": 39.0
+          },
+          "s3_url": "s3://bucket/path/image.jpg",
+          "https_url": "https://bucket.s3.amazonaws.com/path/image.jpg"
         }
       ]
     }
-  agent: image_retriever
-
-image_analyzer_task:
-  description: >
-    Using the image related data input from the previous task, retrieve the images using the presigned_url,
-    and provide an analytical interpreation related to agricultural farming and operations.
-    Create a comprehensive markdown report that includes:
-    1. A narrative analysis section with findings and insights
-    2. A JSON data section with structured analysis for each image (Key, Description, Classification, Confidence)
-  expected_output: >
-    A neatly formatted JSON string containing the analysis data:
-    - analysis_data: JSON array with analysis for each image containing:
-      - Key: The image key
-      - Description: A simple analytical description
-      - Classification: A classification between [Healthy, Diseased]
-      - Confidence: A confidence score between 0.0 and 100.0
-
-    Example format:
-    {
-      "analysis_data": [
-        {
-          "Key": "image1.jpg",
-          "Description": "A healthy plant, almost ready and ripe",
-          "Classification": "Healthy",
-          "Confidence": 73.5
-        },
-        {
-          "Key": "image2.jpg",
-          "Description": "Plant showing signs of disease",
-          "Classification": "Diseased",
-          "Confidence": 85.2
-        }
-      ]
-    }
-  agent: image_analyzer
+  agent: vision_analyzer
 
 aggregation_task:
   description: >
-    Combine the outputs from the weather analysis, sensor analysis, and vision/image analysis tasks
+    Combine the outputs from the weather analysis, sensor analysis, and vision analysis tasks
     into a single comprehensive JSON report. You have access to the complete outputs from all previous tasks.
     Extract the relevant data from each analysis and structure them into the combined format.
     Ensure all three analysis sections (weather_analysis, sensor_analysis, vision_analysis) are included
@@ -232,12 +225,28 @@ aggregation_task:
         "alerts": [...]
       },
       "vision_analysis": {
-        "analysis_data": [
+        "summary": {
+          "total_records": ...,
+          "total_detections": ...,
+          "healthy_detections": ...,
+          "unhealthy_detections": ...,
+          "health_percentage": ...,
+          "crop_types": [...],
+          "field_names": [...],
+          "detection_classes": [...],
+          "key_findings": [...]
+        },
+        "records": [
           {
-            "Key": "...",
-            "Description": "...",
-            "Classification": "...",
-            "Confidence": ...
+            "timestamp": "...",
+            "date": "...",
+            "crop_name": "...",
+            "field_name": "...",
+            "primary_class": "...",
+            "detections": [...],
+            "metrics": { ... },
+            "s3_url": "...",
+            "https_url": "..."
           }
         ]
       }
