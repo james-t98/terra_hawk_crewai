@@ -22,7 +22,7 @@ class SmartFarmFlow(Flow):
             .crew()
             .kickoff(
                 inputs={
-                    "date": self.state["date"],
+                    "date": datetime.now().strftime("%Y-%m-%d"),
                     "location": os.environ.get("LOCATION"),
                     "farm_id": os.environ.get("FARM_ID"),
                 }
@@ -159,12 +159,8 @@ class SmartFarmFlow(Flow):
 
 def kickoff():
     smart_farm_flow = SmartFarmFlow()
-    # smart_farm_flow.plot()
+    smart_farm_flow.plot()
     result = smart_farm_flow.kickoff()
-
-def plot():
-    poem_flow = SmartFarmFlow()
-    poem_flow.plot("my_flow_plot")
 
 
 if __name__ == "__main__":
