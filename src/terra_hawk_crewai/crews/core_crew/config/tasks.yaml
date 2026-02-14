@@ -3,14 +3,18 @@ master_chief_task:
     You have received comprehensive operational data from all farm analysis systems for {farm_id} on {date}.
     Your inputs include:
 
+    {weather_analysis}
     {vision_analysis}
     {sensor_analysis}
     {compliance_analysis}
 
     Your task is to synthesize all this information into a comprehensive Master Operations Report. Analyze cross-functional
     patterns and correlations between different data sources. For example, correlate weather conditions with sensor readings,
-    link crop health from vision analysis to irrigation recommendations, connect financial ROI data with operational decisions,
-    and assess how compliance requirements impact operations.
+    link crop health from vision analysis to irrigation recommendations, and assess how compliance requirements impact operations.
+
+    Use the S3 Report Reader tool to retrieve previous master_report and vision_analysis reports for {farm_id}
+    to identify trends, improvements, or regressions compared to earlier analyses. Highlight any notable changes
+    in crop health, sensor readings, or compliance status versus historical data.
 
     Create a comprehensive markdown Master Operations Report structured as follows:
     1. Executive Summary - High-level overview of farm status and key insights

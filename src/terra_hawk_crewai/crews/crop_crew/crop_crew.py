@@ -367,7 +367,7 @@ class CropCrew():
             config=self.agents_config['weather_analyst'], # type: ignore[index]
             verbose=True,
             tools=[WeatherAPITool()],
-            allow_delegation=True
+            allow_delegation=False
         )
 
     @agent
@@ -377,7 +377,7 @@ class CropCrew():
             verbose=True,
             tools=[SensorDataRetriever()],
             reasoning=True,
-            allow_delegation=True
+            allow_delegation=False
         )
 
     @agent
@@ -392,7 +392,8 @@ class CropCrew():
     def analysis_aggregator(self) -> Agent:
         return Agent(
             config=self.agents_config['analysis_aggregator'], # type: ignore[index]
-            verbose=True
+            verbose=True,
+            reasoning=True
         )
 
     # To learn more about structured task outputs,
@@ -403,7 +404,8 @@ class CropCrew():
         return Task(
             config=self.tasks_config['weather_task'], # type: ignore[index]
             guardrail=self.validate_weather_report_output,
-            output_pydantic=WeatherReportResult
+            output_pydantic=WeatherReportResult,
+            async_execution=True
         )
 
     @task
@@ -412,13 +414,57 @@ class CropCrew():
             config=self.tasks_config['crop_sensor_task'], # type: ignore[index]
             guardrail=self.validate_sensor_analysis_output,
             output_pydantic=SensorAnalysisResult,
+            async_execution=True
         )
+
+    def validate_vision_output(self, result: TaskOutput) -> Tuple[bool, Any]:
+        """Validates the output from the vision_analyzer_task."""
+        try:
+            data = json.loads(result.raw)
+
+            # Check for required top-level fields
+            if 'summary' not in data:
+                return (False, "Missing required 'summary' field. Please ensure summary is included.")
+
+            if not isinstance(data.get('summary'), dict):
+                return (False, "The 'summary' field must be an object.")
+
+            summary = data['summary']
+            required_summary_fields = ['total_records', 'total_detections', 'healthy_detections',
+                                        'unhealthy_detections', 'health_percentage', 'crop_types',
+                                        'field_names', 'detection_classes', 'key_findings']
+            missing = [f for f in required_summary_fields if f not in summary]
+            if missing:
+                return (False, f"summary is missing fields: {', '.join(missing)}. Please ensure all fields are included.")
+
+            # Validate health_percentage range
+            hp = summary.get('health_percentage', -1)
+            if not isinstance(hp, (int, float)) or hp < 0 or hp > 100:
+                return (False, "health_percentage must be a number between 0 and 100.")
+
+            # Validate list fields
+            for field in ['crop_types', 'field_names', 'detection_classes', 'key_findings']:
+                if not isinstance(summary.get(field), list):
+                    return (False, f"summary.{field} must be an array.")
+
+            # Validate records if present
+            if 'records' in data:
+                if not isinstance(data['records'], list):
+                    return (False, "The 'records' field must be an array.")
+
+            return (True, result.raw)
+        except json.JSONDecodeError:
+            return (False, "Output is not valid JSON. Please return a properly formatted JSON string.")
+        except Exception as e:
+            return (False, f"Validation error: {str(e)}. Please check the output format.")
 
     @task
     def vision_analyzer_task(self) -> Task:
         return Task(
             config=self.tasks_config['vision_analyzer_task'], # type: ignore[index]
-            output_pydantic=VisionAnalysis
+            guardrail=self.validate_vision_output,
+            output_pydantic=VisionAnalysis,
+            async_execution=True
         )
 
     @task
@@ -426,7 +472,8 @@ class CropCrew():
         return Task(
             config=self.tasks_config['aggregation_task'], # type: ignore[index]
             guardrail=self.validate_combined_output,
-            output_pydantic=CombinedCropAnalysis
+            output_pydantic=CombinedCropAnalysis,
+            context=[self.weather_task(), self.crop_sensor_task(), self.vision_analyzer_task()]
         )
 
     @crew

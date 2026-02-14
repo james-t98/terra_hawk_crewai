@@ -1,6 +1,7 @@
 from crewai import Agent, Crew, Process, Task, TaskOutput
 from crewai.project import CrewBase, agent, crew, task
 from crewai.agents.agent_builder.base_agent import BaseAgent
+from terra_hawk_crewai.tools import S3ReportReader
 from typing import List, Tuple, Any
 from pydantic import BaseModel, Field
 import json
@@ -99,7 +100,9 @@ class CoreCrew():
     def master_chief(self) -> Agent:
         return Agent(
             config=self.agents_config['master_chief'], # type: ignore[index]
-            verbose=True
+            verbose=True,
+            reasoning=True,
+            tools=[S3ReportReader()]
         )
 
     # To learn more about structured task outputs,

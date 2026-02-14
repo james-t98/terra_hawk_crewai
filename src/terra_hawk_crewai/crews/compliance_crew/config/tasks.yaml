@@ -1,8 +1,15 @@
 compliance_task:
   description: >
-    Conduct an analysis and interpretation on the following information:
+    Conduct a compliance analysis and interpretation based on the following operational data:
 
-    {topic}
+    Weather Analysis:
+    {weather_analysis}
+
+    Sensor Analysis:
+    {sensor_analysis}
+
+    Vision Analysis:
+    {vision_analysis}
 
     Provide your understanding of the information, and its relevance to our operations and potential influence or impact
     on nitrogen emissions. Try and provide a logical response, classifying the information as positive, neutral, or negative.
@@ -37,3 +44,61 @@ compliance_task:
       }
     }
   agent: compliance_officer
+
+eu_ai_act_task:
+  description: >
+    Assess the TerraHawk Smart Farm AI system against EU AI Act (Regulation 2024/1689) requirements.
+    The system uses computer vision for crop health detection, agentic AI for farm operations analysis,
+    and IoT sensor networks for environmental monitoring. Evaluate:
+    1. Risk classification of the system (is it high-risk under Annex III?)
+    2. Transparency obligations (Article 50 - AI-generated content disclosure)
+    3. Human oversight requirements (Article 14)
+    4. Data governance requirements (Article 10)
+    5. Technical documentation needs (Article 11 + Annex IV)
+    6. Record-keeping and logging (Article 12)
+    7. Accuracy, robustness, and cybersecurity (Article 15)
+
+    Consider the agricultural context: crop monitoring affects food production,
+    nitrogen emissions monitoring affects environmental compliance, and automated
+    recommendations could influence farming decisions with economic impact.
+
+    Provide a compliance assessment with specific action items.
+  expected_output: >
+    A neatly formatted JSON string containing the EU AI Act compliance assessment:
+    {
+      "eu_ai_act_assessment": {
+        "summary": "Brief assessment summary",
+        "system_classification": "Risk level classification with justification",
+        "risk_level": "minimal_risk | limited_risk | high_risk",
+        "transparency_obligations": ["List of transparency requirements"],
+        "human_oversight_requirements": ["List of human oversight measures needed"],
+        "data_governance_requirements": ["List of data governance actions"],
+        "documentation_requirements": ["List of technical documentation needs"],
+        "logging_requirements": ["List of record-keeping requirements"],
+        "security_requirements": ["List of accuracy/robustness/cybersecurity needs"],
+        "compliance_gaps": ["Current gaps in compliance"],
+        "action_items": [
+          {
+            "priority": "High|Medium|Low",
+            "action": "Description of action needed",
+            "deadline_category": "immediate|Q1_2026|Q2_2026|ongoing"
+          }
+        ],
+        "overall_compliance_status": "Compliant|Partially Compliant|Non-Compliant"
+      }
+    }
+  agent: eu_ai_act_analyst
+
+compliance_aggregation_task:
+  description: >
+    Combine the outputs from the nitrogen emissions compliance analysis and the EU AI Act assessment
+    into a single comprehensive compliance report JSON. Extract the relevant data from each analysis
+    and structure them into the combined format. Ensure both sections are included with their complete
+    data structures intact.
+  expected_output: >
+    A neatly formatted JSON string containing both analyses:
+    {
+      "compliance_analysis": { ... },
+      "eu_ai_act_assessment": { ... }
+    }
+  agent: compliance_aggregator

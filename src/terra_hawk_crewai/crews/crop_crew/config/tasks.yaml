@@ -55,12 +55,9 @@ weather_task:
 crop_sensor_task:
   description: >
     Use the sensor_data_retriever tool to retrieve the latest 10 IoT sensor readings for {farm_id}.
-    Collaborate with your teammate Weather Agent to get the weather data and their report. Your location is {location}, and you require the current weather forecast data.
-    Combine this and the weather data you received for interpretations.
     Analyze the sensor data including soil moisture (%), pH levels, temperature (°C), and other metrics across field zones.
-    Cross-reference the sensor data with the weather report from the weather_analyst to provide comprehensive agricultural insights.
     Identify trends, anomalies, irrigation needs, and correlations between environmental conditions and soil health.
-    Assess how current weather conditions (temperature, humidity, precipitation) impact soil moisture levels and disease risk.
+    Assess how current conditions impact soil moisture levels and disease risk based on the sensor readings.
     Create a comprehensive markdown sensor analysis report with findings and recommendations.
   expected_output: >
     A neatly formatted JSON string containing the sensor analysis:

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import json
 from typing import Type, Dict, Any
 from datetime import datetime
 
@@ -84,36 +85,58 @@ class S3ReportWriter(BaseTool):
 
         # Generate timestamp for filename
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        report_filename = f"{report_type}_{timestamp}.md"
+        report_filename_md = f"{report_type}_{timestamp}.md"
+        report_filename_json = f"{report_type}_{timestamp}.json"
 
         # Define drone report types
         drone_report_types = ['mission_plan', 'realtime_monitoring', 'image_analysis', 'maintenance_prediction']
 
-        # Construct the partitioned S3 key
-        # For drone reports: farm_id/date/reports/drone/report_type_timestamp.md
-        # For other reports: farm_id/date/reports/report_type_timestamp.md
+        # Construct the partitioned S3 keys
+        # For drone reports: farm_id/date/reports/drone/report_type_timestamp.{md,json}
+        # For other reports: farm_id/date/reports/report_type_timestamp.{md,json}
         if report_type in drone_report_types:
-            s3_key = f"{farm_id}/{date}/reports/drone/{report_filename}"
+            base_path = f"{farm_id}/{date}/reports/drone"
         else:
-            s3_key = f"{farm_id}/{date}/reports/{report_filename}"
+            base_path = f"{farm_id}/{date}/reports"
+
+        s3_key = f"{base_path}/{report_filename_md}"
+        s3_key_json = f"{base_path}/{report_filename_json}"
+
+        common_metadata = {
+            'generated_by': 'smart_farm_flow',
+            'farm_id': farm_id,
+            'report_type': report_type,
+            'date': date,
+            'created_at': datetime.now().isoformat()
+        }
 
         try:
             # Initialize S3 client
             s3_client = boto3.client('s3', region_name=region)
 
-            # Upload the report (automatically creates the "folder" structure)
+            # Upload the markdown report
             s3_client.put_object(
                 Bucket=bucket_name,
                 Key=s3_key,
                 Body=report_content.encode('utf-8'),
                 ContentType='text/markdown',
-                Metadata={
-                    'generated_by': 'smart_farm_flow',
-                    'farm_id': farm_id,
-                    'report_type': report_type,
-                    'date': date,
-                    'created_at': datetime.now().isoformat()
-                }
+                Metadata=common_metadata,
+            )
+
+            # Also upload a JSON version for frontend consumption
+            # If content is valid JSON, write it directly; otherwise wrap it
+            try:
+                json.loads(report_content)
+                json_body = report_content
+            except (json.JSONDecodeError, ValueError):
+                json_body = json.dumps({"raw_content": report_content})
+
+            s3_client.put_object(
+                Bucket=bucket_name,
+                Key=s3_key_json,
+                Body=json_body.encode('utf-8'),
+                ContentType='application/json',
+                Metadata=common_metadata,
             )
 
             # Construct URLs
@@ -125,9 +148,10 @@ class S3ReportWriter(BaseTool):
 
             return {
                 "success": True,
-                "message": "Report successfully written to S3 with partitioned structure",
+                "message": "Report successfully written to S3 (md + json)",
                 "bucket": bucket_name,
                 "key": s3_key,
+                "key_json": s3_key_json,
                 "farm_id": farm_id,
                 "report_type": report_type,
                 "date": date,

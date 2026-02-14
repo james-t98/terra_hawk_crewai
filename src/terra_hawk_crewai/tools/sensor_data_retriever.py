@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
 import os
-from typing import Type, List, Dict, Any
+import time
+from typing import Type, List, Dict, Any, Optional
 from datetime import datetime
 from decimal import Decimal
+from collections import defaultdict
 
 from pydantic import BaseModel, Field
 from crewai.tools import BaseTool
 
 try:
     import boto3
-    from boto3.dynamodb.conditions import Key
+    from boto3.dynamodb.conditions import Key, Attr
     BOTO3_AVAILABLE = True
 except ImportError:
     BOTO3_AVAILABLE = False
@@ -20,6 +22,8 @@ class SensorDataRetrieverInput(BaseModel):
 
     farm_id: str = Field(..., description="The farm ID to retrieve sensor data for.")
     limit: int = Field(default=10, description="Number of latest sensor readings to retrieve (default: 10).", ge=1, le=100)
+    date: Optional[str] = Field(default=None, description="Optional date filter in YYYY-MM-DD format. Only returns readings from that date.")
+    aggregate: bool = Field(default=False, description="If True, return per-zone aggregated statistics (avg, min, max) instead of raw readings.")
 
 
 class SensorDataRetriever(BaseTool):
@@ -27,6 +31,7 @@ class SensorDataRetriever(BaseTool):
     description: str = (
         "Retrieves the latest IoT sensor readings from a DynamoDB table. "
         "Returns soil moisture, temperature, pH levels, and other agricultural sensor metrics. "
+        "Supports date filtering (YYYY-MM-DD) and per-zone aggregation (avg/min/max). "
         "Useful for analyzing crop health, irrigation needs, and environmental conditions."
     )
     args_schema: Type[BaseModel] = SensorDataRetrieverInput
@@ -47,13 +52,63 @@ class SensorDataRetriever(BaseTool):
             timestamp = int(timestamp)
         try:
             return datetime.fromtimestamp(timestamp).strftime('%Y-%m-%d %H:%M:%S')
-        except:
+        except Exception:
             return str(timestamp)
+
+    def _aggregate_by_zone(self, readings: List[Dict]) -> Dict[str, Any]:
+        """
+        Aggregate sensor readings per zone, computing avg/min/max for numeric fields.
+
+        Returns:
+            Dictionary with per-zone aggregated statistics.
+        """
+        zone_data: Dict[str, List[Dict]] = defaultdict(list)
+        for r in readings:
+            zone = r.get('field_zone', 'Unknown')
+            zone_data[zone].append(r)
+
+        # Numeric fields we want to aggregate
+        numeric_fields = ['soil_moisture', 'temperature', 'ph', 'humidity',
+                          'nitrogen_level', 'phosphorus_level', 'potassium_level']
+
+        aggregated = {}
+        for zone, records in zone_data.items():
+            zone_stats: Dict[str, Any] = {
+                'zone': zone,
+                'readings_count': len(records),
+            }
+
+            for field in numeric_fields:
+                values = [r[field] for r in records if field in r and isinstance(r[field], (int, float))]
+                if values:
+                    zone_stats[field] = {
+                        'avg': round(sum(values) / len(values), 2),
+                        'min': round(min(values), 2),
+                        'max': round(max(values), 2),
+                        'count': len(values),
+                    }
+
+            # Time range
+            timestamps = [r.get('timestamp') for r in records if r.get('timestamp')]
+            if timestamps:
+                zone_stats['time_range'] = {
+                    'earliest': self._format_timestamp(min(timestamps)),
+                    'latest': self._format_timestamp(max(timestamps)),
+                }
+
+            # Sensor types present
+            zone_stats['sensor_types'] = list(set(r.get('sensor_type', 'Unknown') for r in records))
+
+            aggregated[zone] = zone_stats
+
+        return aggregated
 
     def _run(
         self,
         farm_id: str,
-        limit: int = 10
+        limit: int = 10,
+        date: str = None,
+        aggregate: bool = False,
     ) -> Dict[str, Any]:
         """
         Retrieve latest sensor readings from DynamoDB.
@@ -61,6 +116,8 @@ class SensorDataRetriever(BaseTool):
         Args:
             farm_id: The farm ID to query
             limit: Number of latest readings to retrieve (default: 10)
+            date: Optional date filter (YYYY-MM-DD format)
+            aggregate: If True, return per-zone aggregated stats instead of raw readings
 
         Returns:
             Dictionary containing sensor readings and metadata
@@ -81,13 +138,33 @@ class SensorDataRetriever(BaseTool):
             dynamodb = boto3.resource('dynamodb', region_name=region)
             table = dynamodb.Table(table_name)
 
-            # Query using the FarmIdTimestampIndex GSI
-            response = table.query(
-                IndexName='FarmIdTimestampIndex',
-                KeyConditionExpression=Key('farm_id').eq(farm_id),
-                ScanIndexForward=False,  # Sort descending (newest first)
-                Limit=limit
-            )
+            # Build query parameters
+            key_condition = Key('farm_id').eq(farm_id)
+
+            # Add date filter if provided
+            if date:
+                key_condition = key_condition & Key('timestamp').begins_with(date)
+
+            query_params = {
+                'IndexName': 'FarmIdTimestampIndex',
+                'KeyConditionExpression': key_condition,
+                'ScanIndexForward': False,  # Sort descending (newest first)
+                'Limit': limit,
+            }
+
+            # Query with retry
+            max_retries = 3
+            response = None
+            for attempt in range(max_retries):
+                try:
+                    response = table.query(**query_params)
+                    break
+                except Exception as e:
+                    if attempt < max_retries - 1:
+                        delay = 2 ** attempt
+                        time.sleep(delay)
+                    else:
+                        raise
 
             items = response.get('Items', [])
 
@@ -95,41 +172,45 @@ class SensorDataRetriever(BaseTool):
                 return {
                     "success": True,
                     "farm_id": farm_id,
+                    "date_filter": date,
                     "readings_count": 0,
-                    "message": f"No sensor data found for farm_id: {farm_id}",
+                    "message": f"No sensor data found for farm_id: {farm_id}" + (f" on date: {date}" if date else ""),
                     "readings": []
                 }
 
             # Convert Decimal types and format data
             formatted_readings = []
             for item in items:
-                # Convert all Decimal types to native Python types
                 converted_item = self._convert_decimal(item)
-
-                # Add formatted timestamp for readability
                 if 'timestamp' in converted_item:
                     converted_item['timestamp_formatted'] = self._format_timestamp(converted_item['timestamp'])
-
                 formatted_readings.append(converted_item)
 
             # Calculate summary statistics
             zones = set(item.get('field_zone', 'Unknown') for item in formatted_readings)
             sensor_types = set(item.get('sensor_type', 'Unknown') for item in formatted_readings)
 
-            return {
+            result = {
                 "success": True,
                 "farm_id": farm_id,
+                "date_filter": date,
                 "readings_count": len(formatted_readings),
                 "latest_timestamp": self._format_timestamp(formatted_readings[0].get('timestamp')) if formatted_readings else None,
                 "zones_covered": list(zones),
                 "sensor_types": list(sensor_types),
-                "readings": formatted_readings
             }
+
+            if aggregate:
+                result["aggregation"] = self._aggregate_by_zone(formatted_readings)
+                result["readings"] = []  # Don't send raw readings when aggregated
+            else:
+                result["readings"] = formatted_readings
+
+            return result
 
         except Exception as e:
             error_message = str(e)
 
-            # Check for specific error types
             if "ResourceNotFoundException" in error_message:
                 return {
                     "success": False,

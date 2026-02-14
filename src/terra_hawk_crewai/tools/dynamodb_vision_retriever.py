@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import os
+import time
 from typing import Type, List, Dict, Any
 from datetime import datetime
 from decimal import Decimal
@@ -43,32 +44,70 @@ class DynamoDBVisionRetriever(BaseTool):
             return [self._convert_decimal(item) for item in obj]
         return obj
 
-    def _parse_detections(self, detections_list: List[Dict]) -> List[Dict[str, Any]]:
-        """Parse and format detection data from DynamoDB format"""
-        formatted_detections = []
-
-        for detection in detections_list:
-            # Extract detection details
-            detection_data = detection.get('M', {})
-
-            # Parse bounding box
-            bbox = detection_data.get('bbox', {}).get('M', {})
-            bbox_formatted = {
-                'x': float(bbox.get('x', {}).get('N', 0)),
-                'y': float(bbox.get('y', {}).get('N', 0)),
-                'width': float(bbox.get('width', {}).get('N', 0)),
-                'height': float(bbox.get('height', {}).get('N', 0))
+    def _parse_detection(self, detection: Dict) -> Dict[str, Any]:
+        """
+        Parse a single detection from either format:
+        - Raw DynamoDB JSON: {'M': {'label': {'S': 'tomato'}, 'confidence': {'N': '0.95'}, ...}}
+        - Deserialized (boto3 resource): {'label': 'tomato', 'confidence': Decimal('0.95'), ...}
+        """
+        # Check if this is raw DynamoDB JSON format (has 'M' wrapper)
+        if 'M' in detection and isinstance(detection['M'], dict):
+            d = detection['M']
+            bbox_raw = d.get('bbox', {}).get('M', {})
+            return {
+                'label': d.get('label', {}).get('S', 'unknown'),
+                'class_id': int(d.get('class_id', {}).get('N', 0)),
+                'confidence': float(d.get('confidence', {}).get('N', 0)),
+                'isHealthy': d.get('isHealthy', {}).get('BOOL', True),
+                'bbox': {
+                    'x': float(bbox_raw.get('x', {}).get('N', 0)),
+                    'y': float(bbox_raw.get('y', {}).get('N', 0)),
+                    'width': float(bbox_raw.get('width', {}).get('N', 0)),
+                    'height': float(bbox_raw.get('height', {}).get('N', 0)),
+                }
             }
 
-            formatted_detections.append({
-                'label': detection_data.get('label', {}).get('S', 'unknown'),
-                'class_id': int(detection_data.get('class_id', {}).get('N', 0)),
-                'confidence': float(detection_data.get('confidence', {}).get('N', 0)),
-                'isHealthy': detection_data.get('isHealthy', {}).get('BOOL', True),
-                'bbox': bbox_formatted
-            })
+        # Deserialized format (boto3 resource auto-converts types)
+        bbox = detection.get('bbox', {})
+        if isinstance(bbox, dict) and 'M' in bbox:
+            # Partially raw — bbox still in DynamoDB format
+            bbox_m = bbox['M']
+            bbox = {
+                'x': float(bbox_m.get('x', {}).get('N', 0)),
+                'y': float(bbox_m.get('y', {}).get('N', 0)),
+                'width': float(bbox_m.get('width', {}).get('N', 0)),
+                'height': float(bbox_m.get('height', {}).get('N', 0)),
+            }
+        else:
+            bbox = {
+                'x': float(bbox.get('x', 0)),
+                'y': float(bbox.get('y', 0)),
+                'width': float(bbox.get('width', 0)),
+                'height': float(bbox.get('height', 0)),
+            }
 
-        return formatted_detections
+        return {
+            'label': str(detection.get('label', 'unknown')),
+            'class_id': int(detection.get('class_id', 0)),
+            'confidence': float(detection.get('confidence', 0)),
+            'isHealthy': bool(detection.get('isHealthy', True)),
+            'bbox': bbox,
+        }
+
+    def _parse_detections(self, detections: Any) -> List[Dict[str, Any]]:
+        """
+        Parse detections from any DynamoDB format:
+        - Raw DynamoDB list: {'L': [{'M': {...}}, ...]}
+        - Deserialized list: [{'label': 'tomato', ...}, ...]
+        """
+        # Handle raw DynamoDB 'L' wrapper
+        if isinstance(detections, dict) and 'L' in detections:
+            detections = detections['L']
+
+        if not isinstance(detections, list):
+            return []
+
+        return [self._parse_detection(det) for det in detections]
 
     def _run(
         self,
@@ -114,8 +153,19 @@ class DynamoDBVisionRetriever(BaseTool):
             if date:
                 query_params['KeyConditionExpression'] = query_params['KeyConditionExpression'] & Key('timestamp').begins_with(date)
 
-            # Query the table
-            response = table.query(**query_params)
+            # Query the table with retry
+            max_retries = 3
+            response = None
+            for attempt in range(max_retries):
+                try:
+                    response = table.query(**query_params)
+                    break
+                except Exception as e:
+                    if attempt < max_retries - 1:
+                        delay = 2 ** attempt
+                        time.sleep(delay)
+                    else:
+                        raise
 
             items = response.get('Items', [])
 
@@ -135,9 +185,9 @@ class DynamoDBVisionRetriever(BaseTool):
                 # Convert all Decimal types to native Python types
                 converted_item = self._convert_decimal(item)
 
-                # Parse detections if present
-                if 'detections' in item and isinstance(item['detections'], dict) and 'L' in item['detections']:
-                    converted_item['detections'] = self._parse_detections(item['detections']['L'])
+                # Parse detections — handles both raw DynamoDB and deserialized formats
+                if 'detections' in item:
+                    converted_item['detections'] = self._parse_detections(item['detections'])
 
                 formatted_records.append(converted_item)
 
